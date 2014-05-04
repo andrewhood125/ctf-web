@@ -464,34 +464,34 @@ function updateMarkers()
   var count = 0;
   console.log(markers);
   // For each player, base and flag add markers
-  for(var i = 0; i < ctf.players.length; i++)
+  for(var i = 0; i < gameState.players.length; i++)
   {
-    var stringLatLng = ctf.players[i].LOCATION.split(",");
+    var stringLatLng = gameState.players[i].LOCATION.split(",");
     markers[count].setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
-    if(ctf.players[i].TEAM == 1)
+    if(gameState.players[i].TEAM == 1)
     {
-      if(ctf.players[i].STATUS == 0)
+      if(gameState.players[i].STATUS == 0)
       {
         // player is dead
         markers[count].setIcon(bluePlayerIconDead);
-      } else if(ctf.players[i].STATUS == 1) {
+      } else if(gameState.players[i].STATUS == 1) {
         markers[count].setIcon(bluePlayerIconAlive);
       }
       
-    } else if(ctf.players[i].TEAM == 2) {
-      if(ctf.players[i].STATUS == 0)
+    } else if(gameState.players[i].TEAM == 2) {
+      if(gameState.players[i].STATUS == 0)
       {
         // player is dead
         markers[count].setIcon(redPlayerIconDead);
-      } else if(ctf.players[i].STATUS == 1) {
+      } else if(gameState.players[i].STATUS == 1) {
         markers[count].setIcon(redPlayerIconAlive);
       }
     }
     count++;
   }
-  for(var i = 0; i < ctf.flags.length; i++)
+  for(var i = 0; i < gameState.flags.length; i++)
   {
-    var stringLatLng = ctf.flags[i].LOCATION.split(",");
+    var stringLatLng = gameState.flags[i].LOCATION.split(",");
     markers[count].setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
     count++;
   }
