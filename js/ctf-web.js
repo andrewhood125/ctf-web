@@ -1,15 +1,30 @@
-var host = 'localhost';
+var host = 'acm.cs.memphis.edu';
 var port = 4444;
-var latitude;
-var longitude;
-var inLobby;
-var lobbyID;
-var north;
-var south; 
-var east;
-var west;
-var redBase;
-var blueBase;
+var bluePlayerIconDead = "images/blue_marker_dead.png";
+var bluePlayerIconAlive = "images/blue_marker_alive.png";
+var redPlayerIconDead = "images/red_marker_dead.png";
+var redPlayerIconAlive = "images/red_marker_alive.png";
+var blueFlagIcon = "images/ctf_logo_blue.png";
+var redFlagIcon = "images/ctf_logo_red.png";
+var markers = [];
+
+var gameState = {
+	latitude: '',
+	longitude: '',
+	accuracy: '',
+	inLobby: '',
+	lobbyID: '',
+	north: '',
+	south: '',
+	east: '',
+	west: '',
+	myTeam: '',
+	lobbyStatus: '',
+	mapInitialized: '',
+	players: [],
+	bases: [],
+	flags: []
+};
 
 function greet()
 {
@@ -31,10 +46,7 @@ function greet()
 
 function getLobby()
 {
-	$('#username_navbar').html('Connected as ' + $.cookie('USERNAME') + ' in lobby: ' + lobbyID);
-	$('#create_lobby').hide();
-	$('#refresh_lobby').hide();
-	$('#start_lobby').show();
+
 	$('#lobbies').empty();
 	$('#lobbies').append('<tr><td>Players</td></tr>');
 
@@ -46,20 +58,39 @@ function getLobby()
 	var payload = JSON.stringify(request);
 
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
-		console.log(results);
-				north = results.NORTH;
-				south = results.SOUTH;
-				east = results.EAST;
-				west = results.WEST;
-				
+
+				console.log('Getting lobby...');
+				console.log(results);
+				gameState.accuracy = results.ACCURACY;
+				gameState.north = results.NORTH;
+				gameState.south = results.SOUTH;
+				gameState.east = results.EAST;
+				gameState.west = results.WEST;
+				gameState.lobbyStatus = results.STATUS;
+				gameState.players = results.PLAYERS;
+
         for(var i = 0; i < results.PLAYERS.length; i++)
         {
         	$('#lobbies').append('<tr><td>' + results.PLAYERS[i].USERNAME + '</td></tr>');
         }
+        getFlags();
       });
+	
+	
+}
 
-	getBases();
+function getFlags()
+{
+	var request = {
+		ACTION: "FLAG",
+		WEB_ID: $.cookie('WEB_ID')
+	}
 
+	var payload = JSON.stringify(request);
+
+	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
+					gameState.flags = results.FLAGS;
+      });
 }
 
 function getBases()
@@ -72,17 +103,13 @@ function getBases()
 	var payload = JSON.stringify(request);
 
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
-					redBase = results.BASES[0];
-					blueBase = results.BASES[1];
-					console.log('bases');
-					console.log(results.BASES[0]);
-					console.log(blueBase);
-					console.log(redBase);
+					gameState.bases = results.BASES;
       });
 }
 
 function getLobbies()
 {
+
 	var request = {
 		ACTION: "LOBBY",
 		WEB_ID: $.cookie('WEB_ID')
@@ -91,6 +118,8 @@ function getLobbies()
 	var payload = JSON.stringify(request);
 
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
+					console.log("Lobbies...");
+					console.log(results);
 					$('#lobbies').empty();
 					$('#lobbies').append('<tr><td>ID</td><td>Blue</td><td>Red</td><td>State</td><td>Join</td></tr>');
         for(var i = 0; i < results.LOBBIES.length; i++)
@@ -111,20 +140,71 @@ function locate()
 	{
 	  var lat = pos.coords.latitude;
 	  var lng = pos.coords.longitude;
-	  if(lat != latitude || lng != longitude)
+	  if(lat != gameState.latitude || lng != gameState.longitude)
 	  {
-	  	latitude = lat;
-	  	longitude = lng;
-	  	console.log(lat + "," + lng);
+	  	gameState.latitude = lat;
+	  	gameState.longitude = lng;
+	  	console.log('Location updated: ' + lat + "," + lng);
+	  	if(gameState.lobbyStatus == 1)
+	  	{
+	  		// Send my gps update.
+	  		var request = { 
+					ACTION: "GPS", 
+					LOCATION: gameState.latitude + "," + gameState.longitude,
+					WEB_ID: $.cookie('WEB_ID')
+				}
+
+				var payload = JSON.stringify(request);
+
+				$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
+							console.log('Updated gps...');
+			        console.log(results);
+			      });
+	  	}
 	  }  
 	});
+}
+
+function joinLobby(lobby)
+{
+	var request = { 
+		ACTION: "JOIN",
+		ID: lobby,
+		LOCATION: gameState.latitude + "," + gameState.longitude, 
+		WEB_ID: $.cookie('WEB_ID')
+	}
+
+	var payload = JSON.stringify(request);
+
+	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
+				console.log('Joining...' + lobby);
+				console.log(results);
+				if(results.hasOwnProperty('LEVEL')) {
+					alert(JSON.stringify(results));
+				} else {
+					gameState.lobbyID = lobby;
+	        gameState.inLobby = true;
+	        gameState.myTeam = results.TEAM;
+	        getLobby();
+	        $('#username_navbar').html('Connected as ' + $.cookie('USERNAME') + ' in lobby: ' + gameState.lobbyID);
+					$('#create_lobby').hide();
+					$('#refresh_lobby').hide();
+					$('#start_lobby').show();
+					$('#lobbies').empty();
+					$('#lobbies').append('<tr><td>Players</td></tr>');
+					getBases();
+				}
+								
+      });
+
+
 }
 
 function createLobby()
 {
 	var request = { 
 		ACTION: "CREATE", 
-		LOCATION: latitude + "," +longitude, 
+		LOCATION: gameState.latitude + "," + gameState.longitude, 
 		SIZE: 0.0007,
 		ACCURACY: 0.00026,
 		WEB_ID: $.cookie('WEB_ID')
@@ -135,15 +215,31 @@ function createLobby()
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
         if(results.SUCCESS)
         {
-        	lobbyID = results.ID;
-        	inLobby = true;
+        	console.log('Creating lobby...');
+					console.log(results);
+        	gameState.lobbyID = results.ID;
+        	gameState.inLobby = true;
+        	gameState.myTeam = 1;
         	// Move to lobby view.
         	getLobby();
+        } else {
+        	console.log('Error creating lobby...');
+        	console.log(results);
         }
+
+        $('#username_navbar').html('Connected as ' + $.cookie('USERNAME') + ' in lobby: ' + gameState.lobbyID);
+				$('#create_lobby').hide();
+				$('#refresh_lobby').hide();
+				$('#start_lobby').show();
+				$('#lobbies').empty();
+				$('#lobbies').append('<tr><td>Players</td></tr>');
+				getBases();
       });
+
+	
 }
 
-function startGame()
+function sendStart()
 {
 	var request = { 
 		ACTION: "START", 
@@ -153,15 +249,20 @@ function startGame()
 	var payload = JSON.stringify(request);
 
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
+				console.log('Sending start...');
         console.log(results);
       });
+}
 
+function startGame()
+{
 	$('#lobbies').hide();
 	$('#start_lobby').hide();
+	$('#map-canvas').show();
 
   var mapOptions = {
     zoom: 18,
-    center: new google.maps.LatLng(latitude, longitude)
+    center: new google.maps.LatLng(gameState.latitude, gameState.longitude)
   };
 
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
@@ -170,19 +271,19 @@ function startGame()
 
   // Define the LatLng coordinates for the polygon's path.
   var arenaCoords = [
-    new google.maps.LatLng(north, west),
-    new google.maps.LatLng(north, east),
-    new google.maps.LatLng(south, east),
-    new google.maps.LatLng(south, west),
-    new google.maps.LatLng(north, west),
+    new google.maps.LatLng(gameState.north, gameState.west),
+    new google.maps.LatLng(gameState.north, gameState.east),
+    new google.maps.LatLng(gameState.south, gameState.east),
+    new google.maps.LatLng(gameState.south, gameState.west),
+    new google.maps.LatLng(gameState.north, gameState.west),
   ];
 
   var worldCoords = [
-    new google.maps.LatLng(north+10, west-10),
-    new google.maps.LatLng(south-10, west-10),
-    new google.maps.LatLng(south-10, east+10),
-    new google.maps.LatLng(north+10, east+10),
-    new google.maps.LatLng(north+10, west-10)
+    new google.maps.LatLng(gameState.north+10, gameState.west-10),
+    new google.maps.LatLng(gameState.south-10, gameState.west-10),
+    new google.maps.LatLng(gameState.south-10, gameState.east+10),
+    new google.maps.LatLng(gameState.north+10, gameState.east+10),
+    new google.maps.LatLng(gameState.north+10, gameState.west-10)
   ];
 
   // Construct the polygon.
@@ -195,64 +296,218 @@ function startGame()
     fillOpacity: 0.35
   });
 
-  console.log(redBase);
-  var redBaseLatLng = redBase.LOCATION.split(",");
-  var redBaseOverlay = {
-      strokeColor: '#FF0000',
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      fillColor: '#FF0000',
-      fillOpacity: 0.35,
-      map: map,
-      center: new google.maps.LatLng(redBaseLatLng[0], redBaseLatLng[1]),
-      radius: 10
-    };
-    redBaseOverlay = new google.maps.Circle(redBaseOverlay);
-
-  var blueBaseLatLng = blueBase.LOCATION.split(",");
-  var blueBaseOverlay = {
-      strokeColor: '#0000FF',
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      fillColor: '#0000F0',
-      fillOpacity: 0.35,
-      map: map,
-      center: new google.maps.LatLng(blueBaseLatLng[0], blueBaseLatLng[1]),
-      radius: 10
-    };
-    blueBaseOverlay = new google.maps.Circle(blueBaseOverlay);
+  if(gameState.myTeam == 1)
+  {
+  	// Add the team 1 base to the map.
+  	var base = gameState.bases[1];
+  	var baseOverlayLocation = base.LOCATION.split(",");
+	  var baseOverlay = {
+	      strokeColor: '#0000FF',
+	      strokeOpacity: 0.8,
+	      strokeWeight: 2,
+	      fillColor: '#0000FF',
+	      fillOpacity: 0.35,
+	      map: map,
+	      center: new google.maps.LatLng(baseOverlayLocation[0], baseOverlayLocation[1]),
+	      radius: measure(baseOverlayLocation[0], baseOverlayLocation[1], parseFloat(baseOverlayLocation[0], 10) + gameState.accuracy, baseOverlayLocation[1])
+	    };
+	    baseOverlay = new google.maps.Circle(baseOverlay);
+  } else {
+  	// Add the team 1 base to the map.
+  	var base = gameState.bases[0];
+  	var baseOverlayLocation = base.LOCATION.split(",");
+	  var baseOverlay = {
+	      strokeColor: '#FF0000',
+	      strokeOpacity: 0.8,
+	      strokeWeight: 2,
+	      fillColor: '#FF0000',
+	      fillOpacity: 0.35,
+	      map: map,
+	      center: new google.maps.LatLng(baseOverlayLocation[0], baseOverlayLocation[1]),
+	      radius: measure(baseOverlayLocation[0], baseOverlayLocation[1], parseFloat(baseOverlayLocation[0], 10) + gameState.accuracy, baseOverlayLocation[1])
+	    };
+	    baseOverlay = new google.maps.Circle(baseOverlay);
+  }
 
 
   arena.setMap(map);
-  // initializeMarkers();
-  // setAllMap(map);
+  gameState.mapInitialized = true;
+  initializeMarkers();
+  setAllMap(map);
 }
 
-function joinLobby(lobby)
+function initializeMarkers()
 {
-	var request = { 
-		ACTION: "JOIN",
-		ID: lobby,
-		LOCATION: latitude + "," +longitude, 
-		WEB_ID: $.cookie('WEB_ID')
-	}
+	// Show your team and the flags
+  for(var i = 0; i < gameState.players.length; i++)
+  {
+  	if(gameState.players[i].TEAM == gameState.myTeam)
+  	{
+  		addMarker(gameState.players[i], "player");
+  	}
+  }
+    
+  for(var i = 0; i < gameState.flags.length; i++)
+  {
+    addMarker(gameState.flags[i], "flag");
+  }
+}
 
-	var payload = JSON.stringify(request);
+// Sets the map on all markers in the array.
+function setAllMap(map) {
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setMap(map);
+  }
+}
 
-	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
-				lobbyID = lobby;
-        inLobby = true;
-        getLobby();
-      });
+// Add a marker to the map and push to the array.
+function addMarker(entity, type) {
+  // Get the lat and long as doubles from location
+  var stringLatLng = entity.LOCATION.split(",");
+  var image;
+  var marker_title;
+  if(type == "player")
+  {
+    marker_title = entity.USERNAME;
+    if(entity.TEAM == 1)
+    {
+      if(entity.STATUS == 0)
+      {
+        // player is dead
+        image = bluePlayerIconDead;
+      } else if(entity.STATUS == 1) {
+        image = bluePlayerIconAlive;
+      }
+      
+    } else if(entity.TEAM == 2) {
+      if(entity.STATUS == 0)
+      {
+        // player is dead
+        image = redPlayerIconDead;
+      } else if(entity.STATUS == 1) {
+        image = redPlayerIconAlive;
+      }
+    }
+  } else if(type == "flag") {
+    if(entity.TEAM == 1)
+    {
+      marker_title = "Blue Flag";
+      image = blueFlagIcon;
+    } else if(entity.TEAM == 2) {
+      marker_title = "Red Flag";
+      image = redFlagIcon;
+    } 
+  } else if(type == "base") {
+    if(entity.TEAM == 1)
+    {
+      marker_title = "Blue Base";
+      image = blueBaseIcon;
+    } else if(entity.TEAM == 2) {
+      marker_title = "Red Base";
+      image = redBaseIcon;
+    } 
+  }
+
+  var markerIcon = {
+    size: new google.maps.Size(64, 64),
+    url: image
+	};
+
+	var markerPosition = new google.maps.LatLng(stringLatLng[0],stringLatLng[1]);
+  var markerIcon = new google.maps.MarkerImage(image, null, null, null, new google.maps.Size(24,24));
+  var marker = new google.maps.Marker({
+    position: markerPosition,
+    map: map,
+    icon: markerIcon,
+    title: marker_title
+  });
+  
+  markers.push(marker);
 }
 
 function setup()
 {
 	$('#create_lobby').click(createLobby);
 	$('#refresh_lobby').click(getLobbies);
-	$('#start_lobby').click(startGame);
+	$('#start_lobby').click(sendStart);
 
 	$('#start_lobby').hide();
+	$('#map-canvas').hide();
+}
+
+function repeatables()
+{
+	console.log('Gamestate...');
+	console.log(gameState);
+	locate();
+
+	if(gameState.inLobby)
+	{
+		getLobby();
+		// Check if new players have joined and if the game has started. 
+		if(gameState.lobbyStatus == 1)
+		{
+			if(gameState.mapInitialized == false)
+			{
+				console.log('Game was started...');
+				startGame();
+			} 
+			// Check if anything has changed since I'm unable to get broadcasts or pushes from the server
+			updateMarkers();
+		}
+	}
+	setTimeout(repeatables, 5000);
+}
+
+function updateMarkers()
+{
+  var count = 0;
+  console.log(markers);
+  // For each player, base and flag add markers
+  for(var i = 0; i < ctf.players.length; i++)
+  {
+    var stringLatLng = ctf.players[i].LOCATION.split(",");
+    markers[count].setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
+    if(ctf.players[i].TEAM == 1)
+    {
+      if(ctf.players[i].STATUS == 0)
+      {
+        // player is dead
+        markers[count].setIcon(bluePlayerIconDead);
+      } else if(ctf.players[i].STATUS == 1) {
+        markers[count].setIcon(bluePlayerIconAlive);
+      }
+      
+    } else if(ctf.players[i].TEAM == 2) {
+      if(ctf.players[i].STATUS == 0)
+      {
+        // player is dead
+        markers[count].setIcon(redPlayerIconDead);
+      } else if(ctf.players[i].STATUS == 1) {
+        markers[count].setIcon(redPlayerIconAlive);
+      }
+    }
+    count++;
+  }
+  for(var i = 0; i < ctf.flags.length; i++)
+  {
+    var stringLatLng = ctf.flags[i].LOCATION.split(",");
+    markers[count].setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
+    count++;
+  }
+}
+
+function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement function
+    var R = 6378.137; // Radius of earth in KM
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    var d = R * c;
+    console.log("measuring distance from " + lat1 + "," + lon1 + " to " + lat2 + "," + lon2 + ": " + d*1000);
+    return d * 1000; // meters
 }
 
 $(document).ready(function() {
@@ -267,11 +522,14 @@ $(document).ready(function() {
 	// Greet
 	greet();
 
-	//
-	locate();
-
 	// Setup
 	setup();
+
+	locate();
+
+	// Loop
+	setTimeout(repeatables, 1000);
+
 
 
 });
