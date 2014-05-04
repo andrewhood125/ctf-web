@@ -6,7 +6,6 @@ var redPlayerIconDead = "images/red_marker_dead.png";
 var redPlayerIconAlive = "images/red_marker_alive.png";
 var blueFlagIcon = "images/ctf_logo_blue.png";
 var redFlagIcon = "images/ctf_logo_red.png";
-var markers = [];
 
 var gameState = {
 	latitude: '',
@@ -59,15 +58,22 @@ function getLobby()
 
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
 
-				console.log('Getting lobby...');
-				console.log(results);
 				gameState.accuracy = results.ACCURACY;
 				gameState.north = results.NORTH;
 				gameState.south = results.SOUTH;
 				gameState.east = results.EAST;
 				gameState.west = results.WEST;
 				gameState.lobbyStatus = results.STATUS;
-				gameState.players = results.PLAYERS;
+				if(gameState.mapInitialized == false)
+				{
+					gameState.players = results.PLAYERS;
+				} else {
+					for(var i = 0; i < gameState.players.length; i++)
+					{
+							gameState.players[i].LOCATION = results.PLAYERS[i].LOCATION;
+					}
+				}
+				
 
         for(var i = 0; i < results.PLAYERS.length; i++)
         {
@@ -89,7 +95,15 @@ function getFlags()
 	var payload = JSON.stringify(request);
 
 	$.getJSON('http://' + host + ':' + port + '?json_ctf_server=' + payload + '?callback=?', null, function (results) {
-					gameState.flags = results.FLAGS;
+					if(gameState.mapInitialized == false)
+					{
+						gameState.flags = results.FLAGS;
+					} else {
+						for(var i = 0; i < gameState.flags.length; i++)
+						{
+								gameState.flags[i].LOCATION = results.FLAGS[i].LOCATION;
+						}
+					}
       });
 }
 
@@ -219,7 +233,7 @@ function createLobby()
 					console.log(results);
         	gameState.lobbyID = results.ID;
         	gameState.inLobby = true;
-        	gameState.myTeam = 1;
+        	gameState.myTeam = 2;
         	// Move to lobby view.
         	getLobby();
         } else {
@@ -332,31 +346,43 @@ function startGame()
 
   arena.setMap(map);
   gameState.mapInitialized = true;
-  initializeMarkers();
-  setAllMap(map);
+  initializeMarkers(map);
 }
 
-function initializeMarkers()
+function initializeMarkers(map)
 {
 	// Show your team and the flags
   for(var i = 0; i < gameState.players.length; i++)
   {
   	if(gameState.players[i].TEAM == gameState.myTeam)
   	{
-  		addMarker(gameState.players[i], "player");
+  		
+  		var marker = addMarker(gameState.players[i], "player");
+  		console.log('merging marker...');
+  		console.log(marker);
+  		$.when(gameState.players[i]['marker'] = marker).then(function() {
+  			console.log('player post merge...');
+  			console.log(gameState.players[i]);
+  			console.log('gameState post merge...');
+  			console.log(gameState);
+	  		marker.setMap(map);
+  		});
   	}
   }
     
   for(var i = 0; i < gameState.flags.length; i++)
   {
-    addMarker(gameState.flags[i], "flag");
-  }
-}
-
-// Sets the map on all markers in the array.
-function setAllMap(map) {
-  for (var i = 0; i < markers.length; i++) {
-    markers[i].setMap(map);
+  	var marker = addMarker(gameState.flags[i], "flag");
+  	console.log('merging marker...');
+  	console.log(marker);
+  	$.when(gameState.flags[i]['marker'] = marker).then(function() {
+  		console.log('flag post merge...');
+			console.log(gameState.flags[i]);
+			console.log('gameState post merge...');
+			console.log(gameState);
+  		marker.setMap(map);
+  	});
+  	
   }
 }
 
@@ -397,21 +423,13 @@ function addMarker(entity, type) {
       marker_title = "Red Flag";
       image = redFlagIcon;
     } 
-  } else if(type == "base") {
-    if(entity.TEAM == 1)
-    {
-      marker_title = "Blue Base";
-      image = blueBaseIcon;
-    } else if(entity.TEAM == 2) {
-      marker_title = "Red Base";
-      image = redBaseIcon;
-    } 
   }
 
   var markerIcon = {
     size: new google.maps.Size(64, 64),
     url: image
 	};
+
 
 	var markerPosition = new google.maps.LatLng(stringLatLng[0],stringLatLng[1]);
   var markerIcon = new google.maps.MarkerImage(image, null, null, null, new google.maps.Size(24,24));
@@ -422,7 +440,7 @@ function addMarker(entity, type) {
     title: marker_title
   });
   
-  markers.push(marker);
+  return marker
 }
 
 function setup()
@@ -461,39 +479,51 @@ function repeatables()
 
 function updateMarkers()
 {
-  var count = 0;
-  console.log(markers);
   // For each player, base and flag add markers
+  console.log('updating markers');
   for(var i = 0; i < gameState.players.length; i++)
   {
     var stringLatLng = gameState.players[i].LOCATION.split(",");
-    markers[count].setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
-    if(gameState.players[i].TEAM == 1)
+    
+    
+    if(gameState.players[i].TEAM == gameState.myTeam)
     {
+    	console.log('Updating player...');
+    	console.log(gameState.players[i]);
+    	gameState.players[i].marker.setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
       if(gameState.players[i].STATUS == 0)
       {
-        // player is dead
-        markers[count].setIcon(bluePlayerIconDead);
+      	if(gameState.myTeam == 1)
+      	{
+      		// blue icons
+      		console.log('blue, dead');
+      		gameState.players[i].marker.setIcon(bluePlayerIconDead);
+      	} else {
+      		console.log('red, dead');
+      		gameState.players[i].marker.setIcon(redPlayerIconDead);
+      	}
+        
       } else if(gameState.players[i].STATUS == 1) {
-        markers[count].setIcon(bluePlayerIconAlive);
+      	if(gameState.myTeam == 1)
+      	{
+      		// blue icons
+      		console.log('blue, alive');
+      		gameState.players[i].marker.setIcon(bluePlayerIconAlive);
+      	} else {
+      		console.log('red, alive');
+      		gameState.players[i].marker.setIcon(redPlayerIconAlive);
+      	}
       }
       
-    } else if(gameState.players[i].TEAM == 2) {
-      if(gameState.players[i].STATUS == 0)
-      {
-        // player is dead
-        markers[count].setIcon(redPlayerIconDead);
-      } else if(gameState.players[i].STATUS == 1) {
-        markers[count].setIcon(redPlayerIconAlive);
-      }
     }
-    count++;
   }
+
   for(var i = 0; i < gameState.flags.length; i++)
   {
+  	console.log('gameState...');
+  	console.log(gameState);
     var stringLatLng = gameState.flags[i].LOCATION.split(",");
-    markers[count].setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
-    count++;
+    gameState.flags[i].marker.setPosition(new google.maps.LatLng(stringLatLng[0], stringLatLng[1]));
   }
 }
 
