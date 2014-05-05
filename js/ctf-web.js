@@ -224,7 +224,7 @@ function createLobby() {
     var request = {
         ACTION: "CREATE",
         LOCATION: gameState.latitude + "," + gameState.longitude,
-        SIZE: 0.00035,
+        SIZE: 0.0007,
         ACCURACY: 0.00026,
         WEB_ID: getCookie('WEB_ID')
     };
@@ -464,7 +464,7 @@ function repeatables() {
             updateMarkers();
         }
     }
-    setTimeout(repeatables, 5000);
+    setTimeout(repeatables, 500);
 }
 
 function updateMarkers() {
